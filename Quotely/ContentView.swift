@@ -7,15 +7,182 @@
 
 import SwiftUI
 
+func GetQuote(type:Int) -> String {
+    return "balls"
+}
+
+func loadArray() -> [String] {
+    @AppStorage("favoritesArray") var favoritesArrayData: Data = Data()
+    if let array = try? JSONDecoder().decode([String].self, from: favoritesArrayData ) {
+        return array
+    }
+    return []
+}
+
+func appendArray(_ newElements: [String]) {
+    @AppStorage("favoritesArray") var favoritesArrayData: Data = Data()
+    var currentArray = loadArray()
+    currentArray.append(contentsOf: newElements)
+    if let data = try? JSONEncoder().encode(currentArray) {
+        favoritesArrayData = data
+    }
+}
+
 struct ContentView: View {
     var body: some View {
         VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+            TabView() {
+                HomeView().tabItem {
+                    Label("Home", systemImage: "house")
+                }
+                SettingsView().tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                FavoritesView().tabItem {
+                    Label("Favorites", systemImage: "star")
+                }
+            }
         }
-        .padding()
+    }
+}
+
+struct HomeView: View {
+    @State private var showInfoBubble = false
+    @AppStorage("favoritesArray") private var favoritesArrayData: Data = Data()
+    @AppStorage("largerFont") private var largerFont: Bool = false
+    @AppStorage("quote") private var quote: String = "It's finally pride month!! 🏳️‍🌈"
+    @AppStorage("author") private var author: String = "The Developer"
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                VStack {
+                    if largerFont {
+                        Text("\"\(quote)\"").font(.largeTitle).multilineTextAlignment(.center).padding()
+                    } else {
+                        Text("\"\(quote)\"").font(.title).multilineTextAlignment(.center).padding()
+                    }
+                    Text("- \(author)").multilineTextAlignment(.center).padding([.leading, .bottom, .trailing])
+                }
+                .toolbar {
+                    Menu {
+                        Button(action: { // New Quote
+                            // TBD, no API yet so can't get new quote
+                        }) {
+                            Label("New Quote", systemImage: "arrow.clockwise")
+                        }
+                        
+                        Button(action: { // Favorite Quote
+                            appendArray([quote, "- \(author)"])
+                            withAnimation {
+                                showInfoBubble = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                withAnimation {
+                                    showInfoBubble = false
+                                }
+                            }
+                        }) {
+                            Label("Favorite Quote", systemImage: "star")
+                        }
+                        
+                        ShareLink(item: "\"\(quote)\" - \(author)")
+                        {
+                            Label("Share Quote", systemImage: "square.and.arrow.up")
+                        }
+                    } label: {
+                        Label("Options", systemImage: "ellipsis")
+                    }
+                }
+                if showInfoBubble {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            Text("Added Quote to Favorites")
+                                .padding()
+                                .background(Color.secondary.opacity(0.7))
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
+                                .padding(.bottom, 20)
+                            Spacer()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct SettingsView: View {
+    @AppStorage("largerFont") private var largerFont: Bool = false
+    @AppStorage("quoteType") private var quoteType: Int = 1
+    var body: some View {
+        NavigationStack {
+            List {
+                Picker(selection: $quoteType, label: Text("Quote Type")) {
+                    Text("Inspirational").tag(1)
+                    Text("Age").tag(2)
+                    Text("Art").tag(3)
+                    Text("Attitude").tag(4)
+                    Text("Courage").tag(5)
+                    Text("Education").tag(6)
+                    Text("Equality").tag(7)
+                    Text("Faith").tag(8)
+                    Text("Family").tag(9)
+                    Text("Friendship").tag(10)
+                    Text("Funny").tag(11)
+                    Text("Future").tag(12)
+                    Text("Happiness").tag(13)
+                    Text("Success").tag(14)
+                }
+                Toggle(isOn: $largerFont) {
+                    Text("Larger Quote Font")
+                }
+            }
+            .navigationTitle("Settings")
+        }
+    }
+}
+
+struct FavoritesView: View {
+    @State private var favoritesArray: [String] = []
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(0..<favoritesArray.count/2, id: \.self) { index in
+                    LazyVStack {
+                        Text("\"\(favoritesArray[index * 2])\"")
+                        Text(favoritesArray[index * 2 + 1])
+                            .padding(1.0)
+                            
+                        ShareLink(item: "\"\(favoritesArray[index * 2])\" \(favoritesArray[index * 2 + 1])") {
+                            Label("Share Quote", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                }
+                .onDelete(perform: deleteItem)
+            }
+            .navigationTitle("Favorites")
+            .onAppear {
+                favoritesArray = loadArray()
+            }
+        }
+    }
+    func saveArray(_ array: [String]) {
+        if let data = try? JSONEncoder().encode(array) {
+            UserDefaults.standard.set(data, forKey: "favoritesArray")
+        }
+    }
+    func deleteItem(at offsets: IndexSet) {
+        @AppStorage("favoritesArray") var favoritesArrayData: Data = Data()
+        offsets.forEach { index in
+            let realIndex = index * 2
+            favoritesArray.remove(at: realIndex)
+            if realIndex < favoritesArray.count {
+                favoritesArray.remove(at: realIndex) // Remove the paired item if it exists
+            }
+        }
+        saveArray(favoritesArray)
     }
 }
 
