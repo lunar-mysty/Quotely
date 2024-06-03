@@ -6,9 +6,81 @@
 //
 
 import SwiftUI
+import Foundation
+import Combine
 
-func GetQuote(type:Int) -> String {
-    return "balls"
+struct Quote: Codable {
+    let _id: String
+    let content: String
+    let author: String
+    let tags: [String]
+    let authorSlug: String
+    let length: Int
+    let dateAdded: String
+    let dateModified: String
+}
+
+class QuoteFetcher: ObservableObject {
+    @AppStorage("quote") private var quote: String = ""
+    @AppStorage("author") private var author: String = ""
+    @AppStorage("quoteType") private var quoteType: Int = 1
+    @State private var quoteTag: String = ""
+
+    private var cancellable: AnyCancellable?
+
+    func fetchQuote() {
+        if quoteType == 1 {
+            quoteTag = "inspirational"
+        } else if quoteType == 2 {
+            quoteTag = "age"
+        } else if quoteType == 3 {
+            quoteTag = "art"
+        } else if quoteType == 4 {
+            quoteTag = "attitude"
+        } else if quoteType == 5 {
+            quoteTag = "courage"
+        } else if quoteType == 6 {
+            quoteTag = "education"
+        } else if quoteType == 7 {
+            quoteTag = "equality"
+        } else if quoteType == 8 {
+            quoteTag = "faith"
+        } else if quoteType == 9 {
+            quoteTag = "family"
+        } else if quoteType == 10 {
+            quoteTag = "friendship"
+        } else if quoteType == 11 {
+            quoteTag = "funny"
+        } else if quoteType == 12 {
+            quoteTag = "future"
+        } else if quoteType == 13 {
+            quoteTag = "happiness"
+        } else if quoteType == 14 {
+            quoteTag = "success"
+        }
+        guard let url = URL(string: "https://api.quotable.io/quotes/random?tags=\(quoteTag)") else {
+            print("Invalid URL")
+            return
+        }
+
+        cancellable = URLSession.shared.dataTaskPublisher(for: url)
+            .map { $0.data }
+            .decode(type: [Quote].self, decoder: JSONDecoder())
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { completion in
+                switch completion {
+                case .finished:
+                    break
+                case .failure(let error):
+                    print("Error fetching quote: \(error)")
+                }
+            }, receiveValue: { [weak self] quotes in
+                if let firstQuote = quotes.first {
+                    self?.quote = firstQuote.content
+                    self?.author = firstQuote.author
+                }
+            })
+    }
 }
 
 func loadArray() -> [String] {
@@ -50,8 +122,9 @@ struct HomeView: View {
     @State private var showInfoBubble = false
     @AppStorage("favoritesArray") private var favoritesArrayData: Data = Data()
     @AppStorage("largerFont") private var largerFont: Bool = false
-    @AppStorage("quote") private var quote: String = "It's finally pride month!! 🏳️‍🌈"
-    @AppStorage("author") private var author: String = "The Developer"
+    @AppStorage("quote") private var quote: String = ""
+    @AppStorage("author") private var author: String = ""
+    @StateObject private var quoteFetcher = QuoteFetcher()
     var body: some View {
         NavigationStack {
             ZStack {
@@ -64,13 +137,13 @@ struct HomeView: View {
                     Text("- \(author)").multilineTextAlignment(.center).padding([.leading, .bottom, .trailing])
                 }
                 .toolbar {
-                    Menu {
-                        Button(action: { // New Quote
-                            // TBD, no API yet so can't get new quote
-                        }) {
-                            Label("New Quote", systemImage: "arrow.clockwise")
+                    ToolbarItem(placement: .topBarLeading) {
+                        ShareLink(item: "\"\(quote)\" - \(author)")
+                        {
+                            Label("Share Quote", systemImage: "square.and.arrow.up")
                         }
-                        
+                    }
+                    ToolbarItem(placement: .topBarLeading) {
                         Button(action: { // Favorite Quote
                             appendArray([quote, "- \(author)"])
                             withAnimation {
@@ -84,13 +157,11 @@ struct HomeView: View {
                         }) {
                             Label("Favorite Quote", systemImage: "star")
                         }
-                        
-                        ShareLink(item: "\"\(quote)\" - \(author)")
-                        {
-                            Label("Share Quote", systemImage: "square.and.arrow.up")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("New Quote", systemImage: "arrow.clockwise") {
+                            quoteFetcher.fetchQuote()
                         }
-                    } label: {
-                        Label("Options", systemImage: "ellipsis")
                     }
                 }
                 if showInfoBubble {
@@ -100,15 +171,20 @@ struct HomeView: View {
                             Spacer()
                             Text("Added Quote to Favorites")
                                 .padding()
-                                .background(Color.secondary.opacity(0.7))
-                                .foregroundColor(.white)
+                                .background(Color.white)
+                                .foregroundColor(.black)
                                 .cornerRadius(10)
-                                .padding(.bottom, 20)
+                                .padding(.bottom, 25)
+                                .shadow(radius: 20)
+                            
                             Spacer()
                         }
                     }
                 }
             }
+        }
+        .onAppear {
+            quoteFetcher.fetchQuote()
         }
     }
 }
@@ -118,7 +194,7 @@ struct SettingsView: View {
     @AppStorage("quoteType") private var quoteType: Int = 1
     var body: some View {
         NavigationStack {
-            List {
+            Form {
                 Picker(selection: $quoteType, label: Text("Quote Type")) {
                     Text("Inspirational").tag(1)
                     Text("Age").tag(2)
@@ -138,8 +214,26 @@ struct SettingsView: View {
                 Toggle(isOn: $largerFont) {
                     Text("Larger Quote Font")
                 }
+                NavigationLink(destination: NotificationSettingsView()) {
+                    Text("Notifications")
+                }
             }
             .navigationTitle("Settings")
+        }
+    }
+}
+
+struct NotificationSettingsView: View {
+    @AppStorage("notifs") private var notifs: Bool = false
+    var body: some View {
+        NavigationStack {
+            Form {
+                Toggle(isOn: $notifs) {
+                    Text("Show Notifications")
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Notifications")
         }
     }
 }
@@ -152,7 +246,12 @@ struct FavoritesView: View {
                 ForEach(0..<favoritesArray.count/2, id: \.self) { index in
                     LazyVStack {
                         Text("\"\(favoritesArray[index * 2])\"")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .multilineTextAlignment(.center)
+                            
                         Text(favoritesArray[index * 2 + 1])
+                            .multilineTextAlignment(.center)
                             .padding(1.0)
                             
                         ShareLink(item: "\"\(favoritesArray[index * 2])\" \(favoritesArray[index * 2 + 1])") {
@@ -179,7 +278,7 @@ struct FavoritesView: View {
             let realIndex = index * 2
             favoritesArray.remove(at: realIndex)
             if realIndex < favoritesArray.count {
-                favoritesArray.remove(at: realIndex) // Remove the paired item if it exists
+                favoritesArray.remove(at: realIndex)
             }
         }
         saveArray(favoritesArray)
