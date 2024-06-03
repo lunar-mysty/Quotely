@@ -8,6 +8,7 @@
 import SwiftUI
 import Foundation
 import Combine
+import PhotosUI
 
 struct Quote: Codable {
     let _id: String
@@ -122,19 +123,70 @@ struct HomeView: View {
     @State private var showInfoBubble = false
     @AppStorage("favoritesArray") private var favoritesArrayData: Data = Data()
     @AppStorage("largerFont") private var largerFont: Bool = false
+    @AppStorage("customFontColor") private var customFontColor: Bool = false
     @AppStorage("quote") private var quote: String = ""
     @AppStorage("author") private var author: String = ""
+    @AppStorage("fontColorR") private var fontColorR: Double = 1.0
+    @AppStorage("fontColorG") private var fontColorG: Double = 0.0
+    @AppStorage("fontColorB") private var fontColorB: Double = 0.0
     @StateObject private var quoteFetcher = QuoteFetcher()
+    @State private var offset = CGSize.zero
+    @State private var screenWidth = UIScreen.main.bounds.width
+    @State private var screenHeight = UIScreen.main.bounds.height
+
     var body: some View {
         NavigationStack {
             ZStack {
                 VStack {
                     if largerFont {
-                        Text("\"\(quote)\"").font(.largeTitle).multilineTextAlignment(.center).padding()
+                        if customFontColor {
+                            Text("\"\(quote)\"")
+                                .font(.largeTitle)
+                                .foregroundColor(Color(red: fontColorR, green: fontColorG, blue: fontColorB, opacity: 1.0))
+                                .multilineTextAlignment(.center)
+                                .padding()
+                                .offset(x: offset.width, y: offset.height)
+                                .animation(.easeInOut(duration: 0.5), value: offset)
+                        } else {
+                            Text("\"\(quote)\"")
+                                .font(.largeTitle)
+                                .multilineTextAlignment(.center)
+                                .padding()
+                                .offset(x: offset.width, y: offset.height)
+                                .animation(.easeInOut(duration: 0.5), value: offset)
+                        }
                     } else {
-                        Text("\"\(quote)\"").font(.title).multilineTextAlignment(.center).padding()
+                        if customFontColor {
+                            Text("\"\(quote)\"")
+                                .font(.title)
+                                .foregroundColor(Color(red: fontColorR, green: fontColorG, blue: fontColorB, opacity: 1.0))
+                                .multilineTextAlignment(.center)
+                                .padding()
+                                .offset(x: offset.width, y: offset.height)
+                                .animation(.easeInOut(duration: 0.5), value: offset)
+                        } else {
+                            Text("\"\(quote)\"")
+                                .font(.title)
+                                .multilineTextAlignment(.center)
+                                .padding()
+                                .offset(x: offset.width, y: offset.height)
+                                .animation(.easeInOut(duration: 0.5), value: offset)
+                        }
                     }
-                    Text("- \(author)").multilineTextAlignment(.center).padding([.leading, .bottom, .trailing])
+                    if customFontColor {
+                        Text("- \(author)")
+                            .foregroundColor(Color(red: fontColorR, green: fontColorG, blue: fontColorB, opacity: 1.0))
+                            .multilineTextAlignment(.center)
+                            .padding([.leading, .bottom, .trailing])
+                            .offset(x: offset.width, y: offset.height)
+                            .animation(.easeInOut(duration: 0.5), value: offset)
+                    } else {
+                        Text("- \(author)")
+                            .multilineTextAlignment(.center)
+                            .padding([.leading, .bottom, .trailing])
+                            .offset(x: offset.width, y: offset.height)
+                            .animation(.easeInOut(duration: 0.5), value: offset)
+                    }
                 }
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
@@ -175,13 +227,26 @@ struct HomeView: View {
                                 .foregroundColor(.black)
                                 .cornerRadius(10)
                                 .padding(.bottom, 25)
-                                .shadow(radius: 20)
-                            
+                                .shadow(radius: 10)
                             Spacer()
                         }
                     }
                 }
             }
+            .gesture(
+                DragGesture()
+                    .onChanged { gesture in
+                        offset = gesture.translation
+                    }
+                    .onEnded { gesture in
+                        let flingDirection = CGSize(width: gesture.translation.width * 4, height: gesture.translation.height * 4)
+                        offset = flingDirection
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            offset = .zero
+                            quoteFetcher.fetchQuote()
+                        }
+                    }
+            )
         }
         .onAppear {
             quoteFetcher.fetchQuote()
@@ -192,74 +257,105 @@ struct HomeView: View {
 struct SettingsView: View {
     @AppStorage("largerFont") private var largerFont: Bool = false
     @AppStorage("quoteType") private var quoteType: Int = 1
+    @AppStorage("customFontColor") private var customFontColor: Bool = false
+    @AppStorage("fontColorR") private var fontColorR: Double = 1.0
+    @AppStorage("fontColorG") private var fontColorG: Double = 0.0
+    @AppStorage("fontColorB") private var fontColorB: Double = 0.0
+    @State private var fontColorSel: Color = .red
+    @State private var isColorPickerPresented: Bool = false
+    
     var body: some View {
         NavigationStack {
             Form {
-                Picker(selection: $quoteType, label: Text("Quote Type")) {
-                    Text("Inspirational").tag(1)
-                    Text("Age").tag(2)
-                    Text("Art").tag(3)
-                    Text("Attitude").tag(4)
-                    Text("Courage").tag(5)
-                    Text("Education").tag(6)
-                    Text("Equality").tag(7)
-                    Text("Faith").tag(8)
-                    Text("Family").tag(9)
-                    Text("Friendship").tag(10)
-                    Text("Funny").tag(11)
-                    Text("Future").tag(12)
-                    Text("Happiness").tag(13)
-                    Text("Success").tag(14)
+                Section {
+                    Picker(selection: $quoteType, label: Text("Quote Type")) {
+                        Text("Inspirational").tag(1)
+                        Text("Age").tag(2)
+                        Text("Art").tag(3)
+                        Text("Attitude").tag(4)
+                        Text("Courage").tag(5)
+                        Text("Education").tag(6)
+                        Text("Equality").tag(7)
+                        Text("Faith").tag(8)
+                        Text("Family").tag(9)
+                        Text("Friendship").tag(10)
+                        Text("Funny").tag(11)
+                        Text("Future").tag(12)
+                        Text("Happiness").tag(13)
+                        Text("Success").tag(14)
+                    }
+                    Toggle(isOn: $largerFont) {
+                        Text("Larger Quote Font")
+                    }
+                } header: {
+                    Text("General")
                 }
-                Toggle(isOn: $largerFont) {
-                    Text("Larger Quote Font")
-                }
-                NavigationLink(destination: NotificationSettingsView()) {
-                    Text("Notifications")
+                Section {
+                    Toggle(isOn: $customFontColor) {
+                        Text("Custom Quote Font Color")
+                    }
+                    if customFontColor {
+                        ColorPicker("Quote Font Color", selection: $fontColorSel)
+                            .onChange(of: fontColorSel) { newColor in
+                                assignRGBValues(from: newColor)
+                            }
+                    }
+                } header: {
+                    Text("Appearance")
                 }
             }
             .navigationTitle("Settings")
         }
-    }
-}
-
-struct NotificationSettingsView: View {
-    @AppStorage("notifs") private var notifs: Bool = false
-    var body: some View {
-        NavigationStack {
-            Form {
-                Toggle(isOn: $notifs) {
-                    Text("Show Notifications")
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationTitle("Notifications")
+        .onAppear {
+            loadStoredColor()
         }
+    }
+    
+    private func assignRGBValues(from color: Color) {
+        if let cgColor = color.cgColor, let components = cgColor.components, components.count >= 3 {
+            fontColorR = Double(components[0])
+            fontColorG = Double(components[1])
+            fontColorB = Double(components[2])
+        }
+    }
+    
+    private func loadStoredColor() {
+        fontColorSel = Color(red: fontColorR, green: fontColorG, blue: fontColorB)
     }
 }
 
 struct FavoritesView: View {
     @State private var favoritesArray: [String] = []
+    
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(0..<favoritesArray.count/2, id: \.self) { index in
-                    LazyVStack {
-                        Text("\"\(favoritesArray[index * 2])\"")
-                            .font(.title3)
-                            .fontWeight(.bold)
-                            .multilineTextAlignment(.center)
-                            
-                        Text(favoritesArray[index * 2 + 1])
-                            .multilineTextAlignment(.center)
-                            .padding(1.0)
-                            
-                        ShareLink(item: "\"\(favoritesArray[index * 2])\" \(favoritesArray[index * 2 + 1])") {
-                            Label("Share Quote", systemImage: "square.and.arrow.up")
+            VStack {
+                if favoritesArray.isEmpty {
+                    Text("No favorites yet!")
+                        .font(.title3)
+                        .multilineTextAlignment(.center)
+                        .padding()
+                } else {
+                    List {
+                        ForEach(0..<favoritesArray.count/2, id: \.self) { index in
+                            LazyVStack {
+                                Text("\"\(favoritesArray[index * 2])\"")
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                    .multilineTextAlignment(.center)
+                                
+                                Text(favoritesArray[index * 2 + 1])
+                                    .multilineTextAlignment(.center)
+                                    .padding(1.0)
+                                
+                                ShareLink(item: "\"\(favoritesArray[index * 2])\" \(favoritesArray[index * 2 + 1])") {
+                                    Label("Share Quote", systemImage: "square.and.arrow.up")
+                                }
+                            }
                         }
+                        .onDelete(perform: deleteItem)
                     }
                 }
-                .onDelete(perform: deleteItem)
             }
             .navigationTitle("Favorites")
             .onAppear {
@@ -267,11 +363,13 @@ struct FavoritesView: View {
             }
         }
     }
+    
     func saveArray(_ array: [String]) {
         if let data = try? JSONEncoder().encode(array) {
             UserDefaults.standard.set(data, forKey: "favoritesArray")
         }
     }
+    
     func deleteItem(at offsets: IndexSet) {
         @AppStorage("favoritesArray") var favoritesArrayData: Data = Data()
         offsets.forEach { index in
